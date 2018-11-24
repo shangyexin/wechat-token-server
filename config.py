@@ -18,6 +18,8 @@ bindPort = 12123
 redisIp = '127.0.0.1'
 redisPort = 6379
 
+# 获取token的口令
+requestSecret = 'f3b2241f967aa3c7966f537cdd82ce11'
 
 # 微信access_token配置示例
 tokenSources['access_token'] = {

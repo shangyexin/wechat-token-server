@@ -25,8 +25,11 @@ class MainHandler(tornado.web.RequestHandler):
 class TokenHandler(tornado.web.RequestHandler):
     def get(self):
         tokenType = self.get_argument('type', 'UnKnown')
+        # 获取token的口令
+        secret = self.get_argument('secret', 'UnKnown')
+
         ret = {}
-        if tokenType != 'UnKnown':
+        if tokenType != 'UnKnown' and secret == config.requestSecret:
             try:
                 # 从redis里查询
                 valueInRedis = wechatRedis.get(tokenType)
@@ -40,7 +43,7 @@ class TokenHandler(tornado.web.RequestHandler):
                 else:
                     ret['error'] = 'not found'
         else:
-            ret['error'] = 'unknown arguments'
+            ret['error'] = 'invalid request'
 
         self.write(ret)
 
