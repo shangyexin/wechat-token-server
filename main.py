@@ -33,19 +33,21 @@ class TokenHandler(tornado.web.RequestHandler):
             try:
                 # 从redis里查询
                 valueInRedis = wechatRedis.get(tokenType)
+                expireTime = wechatRedis.ttl(tokenType)
             except Exception as e:
                 logger.error(e)
             finally:
                 if valueInRedis is not None:
                     # token以二进制形式存在redis，这里需要做一个转码
-                    ret = valueInRedis.decode('utf-8')
+                    ret['expires_in'] = expireTime
+                    ret[tokenType] = valueInRedis.decode('utf-8')
                     logger.info('Query %s in redis sucess.', tokenType)
                 else:
                     ret['error'] = 'not found'
         else:
             ret['error'] = 'invalid request'
 
-        self.write(ret)
+        self.write(json.dumps(ret, sort_keys=False))
 
 
 def makeApp():
