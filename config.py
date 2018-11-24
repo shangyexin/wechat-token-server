@@ -5,15 +5,22 @@
 # @File   : config.py
 
 import logging.config
+
 logging.config.fileConfig("logger.conf")
 logger = logging.getLogger("wechat-access-token-server")
 
 tokenSources = {}
+tokenExpireTime = 7000
+
 bindIp = '0.0.0.0'
 bindPort = 12123
 
+redisIp = '127.0.0.1'
+redisPort = 6379
+
+
 # 微信access_token配置示例
-tokenSources['accesstoken'] = {
+tokenSources['access_token'] = {
     'url': 'https://api.weixin.qq.com/cgi-bin/token',
     'method': 'GET',
     'args': {
@@ -24,11 +31,11 @@ tokenSources['accesstoken'] = {
 }
 
 # 微信jsticket配置示例
-tokenSources['jsticket'] = {
+tokenSources['ticket'] = {
     'url': 'https://api.weixin.qq.com/cgi-bin/ticket/getticket',
     'method': 'GET',
     'args': {
         'type': 'jsapi',
-        'access_token': '{{results.accesstoken.access_token}}'
+        'access_token': '{{access_token}}'
     },
 }
