@@ -8,6 +8,7 @@ import tornado.ioloop
 import tornado.web
 import tornado.httpclient
 import tornado.httputil
+import tornado.gen
 import json
 import redis
 
@@ -39,8 +40,8 @@ class TokenHandler(tornado.web.RequestHandler):
             finally:
                 if valueInRedis is not None:
                     # token以二进制形式存在redis，这里需要做一个转码
-                    ret['expires_in'] = expireTime
                     ret[tokenType] = valueInRedis.decode('utf-8')
+                    ret['expires_in'] = expireTime
                     logger.info('Query %s in redis sucess.', tokenType)
                 else:
                     ret['error'] = 'not found'
@@ -52,7 +53,7 @@ class TokenHandler(tornado.web.RequestHandler):
 
 def makeApp():
     return tornado.web.Application([
-        (r"/token/wechat", TokenHandler),
+        (r"/wechat/token", TokenHandler),
         (r"/", MainHandler),
     ])
 
@@ -71,62 +72,58 @@ def renderArgs(argsValue):
         return argsValue
 
 
-def refreshToken(tokenType):
-    # request回调
-    def handle(response):
-        logger.debug('Async httpclient response: %s', response)
-        logger.debug('Async httpclient response body: %s', response.body)
-
-        if response.code == 200:
-            # response body里面json格式的字典
-            resDict = json.loads(response.body.decode('utf8'))
-            logger.info('Request %s success, response is :%s' % (tokenType, resDict))
-            token = resDict[tokenType]
-            # logger.info('Token value is %s', token)
-            try:
-                # 存入redis数据库并设置过期时间
-                wechatRedis.set(tokenType, token, ex=config.tokenExpireTime)
-                logger.info('Set %s in redis success.', tokenType)
-            except Exception as e:
-                logger.error(e)
-        else:
-            logger.error('Request %s error, will retry after 10s' % tokenType)
-            tornado.ioloop.IOLoop.instance().call_later(10, refreshToken, tokenType)
-
-    try:
-        args = {}
-        for (k, v) in config.tokenSources[tokenType]['args'].items():
-            # 解析参数
-            args[k] = renderArgs(v)
+# 配置请求的网址和方法
+def renderRequest(tokenType):
+    args = {}
+    for (k, v) in config.tokenSources[tokenType]['args'].items():
+        # 解析参数
+        args[k] = renderArgs(v)
         # 请求的网址
-        url = tornado.httputil.url_concat(config.tokenSources[tokenType]['url'], args)
-        # 异步客户端
-        asyncHttpClient = tornado.httpclient.AsyncHTTPClient()
-        # 配置请求的网址和方法
-        request = tornado.httpclient.HTTPRequest(url, method=config.tokenSources[tokenType]['method'])
-        # 发起请求并设置回调
-        asyncHttpClient.fetch(request, callback=handle)
+    url = tornado.httputil.url_concat(config.tokenSources[tokenType]['url'], args)
+    request = tornado.httpclient.HTTPRequest(url, method=config.tokenSources[tokenType]['method'])
+    return request
+
+
+async def refreshToken(tokenType):
+    # 异步客户端
+    asyncHttpClient = tornado.httpclient.AsyncHTTPClient()
+    request = renderRequest(tokenType)
+    try:
+        response = await asyncHttpClient.fetch(request)
 
     except Exception as e:
         logger.error('Exception: %s', e)
         logger.error('Create a request for %s failed, will retry after 10s' % str(tokenType))
         # 请求失败后10s后再次尝试刷新
         tornado.ioloop.IOLoop.instance().call_later(10, refreshToken, tokenType)
+    else:
+        logger.debug('Async httpclient response: %s', response)
+        logger.debug('Async httpclient response body: %s', response.body)
+        # response body里面json格式的字典
+        resDict = json.loads(response.body.decode('utf8'))
+        logger.info('Request %s success, response is :%s' % (tokenType, resDict))
+        token = resDict[tokenType]
+        # logger.info('Token value is %s', token)
+        try:
+            # 存入redis数据库并设置过期时间
+            wechatRedis.set(tokenType, token, ex=config.tokenExpireTime)
+            logger.info('Set %s in redis success.', tokenType)
+        except Exception as e:
+            logger.error(e)
 
 
 # 依次刷新tokenSources中的token
-def refreshAllTokens():
+async def refreshAllTokens():
     logger.info('Begin to refresh all tokens...')
-
-    for tokenType in config.tokenSources.keys():
-        refreshToken(tokenType)
+    while True:
+        for tokenType in config.tokenSources.keys():
+            await refreshToken(tokenType)
+        await tornado.gen.sleep(config.tokenExpireTime * 1000)
 
 
 if __name__ == "__main__":
     app = makeApp()
     app.listen(config.bindPort, address=config.bindIp)
-    # 启动前先刷新一次
-    tornado.ioloop.IOLoop.instance().add_callback(refreshAllTokens)
-    # 开启定时任务，过期时间到后就刷新一次
-    tornado.ioloop.PeriodicCallback(refreshAllTokens, config.tokenExpireTime * 1000).start()
+    # 自動刷新token
+    tornado.ioloop.IOLoop.instance().spawn_callback(refreshAllTokens)
     tornado.ioloop.IOLoop.instance().start()
