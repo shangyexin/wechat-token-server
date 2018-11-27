@@ -123,7 +123,6 @@ def renderRequest(tokenType):
     return request
 
 
-
 async def refreshToken(tokenType):
     # 异步客户端
     asyncHttpClient = tornado.httpclient.AsyncHTTPClient()
@@ -141,15 +140,23 @@ async def refreshToken(tokenType):
         logger.debug('Async httpclient response body: %s', response.body)
         # response body里面json格式的字典
         resDict = json.loads(response.body.decode('utf8'))
-        logger.info('Request %s success, response is :%s' % (tokenType, resDict))
-        token = resDict[tokenType]
-        # logger.info('Token value is %s', token)
-        try:
-            # 存入redis数据库并设置过期时间
-            wechatRedis.set(tokenType, token, ex=config.tokenExpireTime)
-            logger.info('Set %s in redis success.', tokenType)
-        except Exception as e:
-            logger.error(e)
+        # 获取access_token成功时没有errcode，获取ticket成功时errcode等于0
+        errcodeExist = 'errcode' in resDict
+        if errcodeExist == False or resDict['errcode'] == 0:
+            logger.info('Request %s success, response is :%s' % (tokenType, resDict))
+            token = resDict[tokenType]
+            # logger.info('Token value is %s', token)
+            try:
+                # 存入redis数据库并设置过期时间
+                wechatRedis.set(tokenType, token, ex=config.tokenExpireTime)
+                logger.info('Set %s in redis success.', tokenType)
+            except Exception as e:
+                logger.error(e)
+        else:
+            logger.error('Request for %s failed, error message is:' % str(tokenType))
+            logger.error(resDict['errmsg'])
+            # 10s后再次尝试刷新
+            tornado.ioloop.IOLoop.instance().call_later(10, refreshToken, tokenType)
 
 
 # 依次刷新tokenSources中的token
@@ -159,7 +166,7 @@ async def refreshAllTokens():
         for tokenType in config.tokenSources.keys():
             await refreshToken(tokenType)
         # 定时更新
-        await tornado.gen.sleep(config.tokenExpireTime * 1000)
+        await tornado.gen.sleep(config.tokenExpireTime)
 
 
 if __name__ == "__main__":
