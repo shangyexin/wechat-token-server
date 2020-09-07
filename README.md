@@ -24,8 +24,12 @@ wechat-token-server是一个自动定时刷新微信token的服务，可以每�
 
 示例代码：
 ```python
-logging.config.fileConfig("logger.conf")
-logger = logging.getLogger("wechat-access-token-server")
+LOG_NAME = 'wechat-token-server'
+LOG_CMD_LEVEL = 'INFO'
+LOG_FILE_LEVEL = 'INFO'
+logger = get_logger(loggername=LOG_NAME, filename='./logs/' + LOG_NAME + '.log')
+logger.set_logger(cmdlevel=LOG_CMD_LEVEL)
+logger.set_logger(filelevel=LOG_FILE_LEVEL)
 
 tokenSources = {}
 tokenExpireTime = 7000
@@ -67,7 +71,7 @@ tokenSources['ticket'] = {
 - tornado==5.1.1
 - redis==3.0.1
 ##### 后台运行
-```nohup python3 main.py & ```
+```nohup python3 token_server.py & ```
 
 ##### 通过redis查询
 如果查询程序与wechat token sever运行在同一台机器上，可以直接查询redis服务器，键值就是```access_token```和```ticket```。
