@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @author : yasin
 # @time   : 11/20/18 7:30 PM
-# @File   : main.py
+# @File   : token_server.py
 
 import tornado.ioloop
 import tornado.web
@@ -25,6 +25,8 @@ class MainHandler(tornado.web.RequestHandler):
 
 class TokenHandler(tornado.web.RequestHandler):
     def get(self):
+        valueInRedis = None
+        expireTime = None
         tokenType = self.get_argument('type', 'UnKnown')
         # 获取token的口令
         secret = self.get_argument('secret', 'UnKnown')
@@ -38,7 +40,7 @@ class TokenHandler(tornado.web.RequestHandler):
             except Exception as e:
                 logger.error(e)
             finally:
-                if valueInRedis is not None:
+                if valueInRedis and expireTime:
                     # token以二进制形式存在redis，这里需要做一个转码
                     ret[tokenType] = valueInRedis.decode('utf-8')
                     ret['expires_in'] = expireTime
@@ -105,7 +107,7 @@ def renderArgs(argsValue):
         valueInRedis = wechatRedis.get(argsValue)
         if valueInRedis is None:
             raise Exception("Cannot find %s in redis, render error." % argsValue)
-        logger.info('{{%s}} render success, result: %s' % (argsValue, valueInRedis))
+        logger.debug('{{%s}} render success, result: %s' % (argsValue, valueInRedis))
         return valueInRedis
     else:
         return argsValue
@@ -143,9 +145,9 @@ async def refreshToken(tokenType):
         # 获取access_token成功时没有errcode，获取ticket成功时errcode等于0
         errcodeExist = 'errcode' in resDict
         if errcodeExist == False or resDict['errcode'] == 0:
-            logger.info('Request %s success, response is :%s' % (tokenType, resDict))
+            logger.debug('Request %s success, response is :%s' % (tokenType, resDict))
             token = resDict[tokenType]
-            # logger.info('Token value is %s', token)
+            # logger.debug('Token value is %s', token)
             try:
                 # 存入redis数据库并设置过期时间
                 wechatRedis.set(tokenType, token, ex=config.tokenExpireTime)

@@ -4,10 +4,16 @@
 # @time   : 11/20/18 7:30 PM
 # @File   : config.py
 
-import logging.config
+from log import get_logger
 
-logging.config.fileConfig("logger.conf")
-logger = logging.getLogger("wechat-access-token-server")
+# 日志配置
+LOG_NAME = 'wechat-token-server'
+LOG_CMD_LEVEL = 'INFO'
+LOG_FILE_LEVEL = 'INFO'
+logger = get_logger(loggername=LOG_NAME, filename='./logs/' + LOG_NAME + '.log')
+logger.set_logger(cmdlevel=LOG_CMD_LEVEL)
+logger.set_logger(filelevel=LOG_FILE_LEVEL)
+
 
 tokenSources = {}
 tokenExpireTime = 7000
