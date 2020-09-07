@@ -77,7 +77,7 @@ tokenSources['ticket'] = {
 如果查询程序与wechat token sever运行在同一台机器上，可以直接查询redis服务器，键值就是```access_token```和```ticket```。
 
 ##### 通过url访问
-直接访问对应的url即可，secret为自己在config.py里面设置的值   
+直接访问对应的url即可，secret为自己在config.py里面设置的```requestSecret``` 
 
 - 查询access_token : ```http://127.0.0.1:12123/wechat/token?type=access_token&secret=f3b2241f967aa3c7966f537cdd82ce11```
 - 查询jsticket : ```http://127.0.0.1:12123/wechat/token?type=ticket&secret=f3b2241f967aa3c7966f537cdd82ce11```
