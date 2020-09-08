@@ -9,8 +9,9 @@ import tornado.web
 import tornado.httpclient
 import tornado.httputil
 import tornado.gen
-import json
 import redis
+import traceback
+import json
 
 import config
 from config import logger
@@ -39,6 +40,7 @@ class TokenHandler(tornado.web.RequestHandler):
                 expireTime = wechatRedis.ttl(tokenType)
             except Exception as e:
                 logger.error(e)
+                logger.error(traceback.format_exc())
             finally:
                 if valueInRedis and expireTime:
                     # token以二进制形式存在redis，这里需要做一个转码
@@ -67,8 +69,8 @@ class ForceRefreshHandler(tornado.web.RequestHandler):
             try:
                 response = syncHttpClient.fetch(request)
             except Exception as e:
-                logger.error('Exception: %s', e)
                 logger.error('Force refresh %s failed.' % str(tokenType))
+                logger.error(traceback.format_exc())
                 ret['errmsg'] = str(e)
             else:
                 logger.debug('Sync httpclient response: %s', response)
@@ -83,6 +85,7 @@ class ForceRefreshHandler(tornado.web.RequestHandler):
                     logger.info('Set %s in redis success.', tokenType)
                 except Exception as e:
                     logger.error(e)
+                    logger.error(traceback.format_exc())
                 # 返回请求
                 ret[tokenType] = resDict[tokenType]
                 ret['expires_in'] = config.tokenExpireTime
@@ -133,7 +136,8 @@ async def refreshToken(tokenType):
         response = await asyncHttpClient.fetch(request)
 
     except Exception as e:
-        logger.error('Exception: %s', e)
+        logger.error(e)
+        logger.error(traceback.format_exc())
         logger.error('Create a request for %s failed, will retry after 10s' % str(tokenType))
         # 请求失败后10s后再次尝试刷新
         tornado.ioloop.IOLoop.instance().call_later(10, refreshToken, tokenType)
@@ -154,6 +158,7 @@ async def refreshToken(tokenType):
                 logger.info('Set %s in redis success.', tokenType)
             except Exception as e:
                 logger.error(e)
+                logger.error(traceback.format_exc())
         else:
             logger.error('Request for %s failed, error message is:' % str(tokenType))
             logger.error(resDict['errmsg'])
